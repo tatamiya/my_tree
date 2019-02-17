@@ -28,6 +28,17 @@ def find_optimal_division(x, y):
     
     return x_unique[i_div_opt], array_gini[i_div_opt]
 
+
+def divide_tree(X, y):
+
+    results = np.apply_along_axis(find_optimal_division, 0, X, y)
+
+    arg_div = np.argmin(results[1])
+    x_div = results[0, arg_div]
+
+    return arg_div, x_div
+
+
 def go_on_dividing(X, y, depth=0, div_set=None,
                    threshold_gini=0.05, min_node_size=5, max_depth=3):
     
