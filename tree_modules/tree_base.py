@@ -9,66 +9,102 @@ def gini(y):
     return 1 - (prob * prob).sum()
 
 
-def find_optimal_division(x, y):
-    list_gini = []
-    x_unique = np.unique(x)
-
-    for threshold in x_unique:
-
-        mask_divide = x > threshold
-        y_upper = y[mask_divide]
-        y_lower = y[~mask_divide]
-
-        gini_divide = (gini(y_upper) * len(y_upper) + gini(y_lower) * len(y_lower)) / len(y)
-
-        list_gini.append(gini_divide)
+class MyTree():
+    
+    
+    def __init__(self, threshold_gini=0.05, min_node_size=5, max_depth=3):
         
-    array_gini = np.array(list_gini)
-    i_div_opt = np.argmin(array_gini)
+        self.threshold_gini, self.min_node_size, self.max_depth = threshold_gini, min_node_size, max_depth
+        self.i_node = None
+        self.dict_nodes = None
     
-    return x_unique[i_div_opt], array_gini[i_div_opt]
-
-
-def divide_tree(X, y):
-
-    results = np.apply_along_axis(find_optimal_division, 0, X, y)
-
-    arg_div = np.argmin(results[1])
-    x_div = results[0, arg_div]
-
-    return arg_div, x_div
-
-
-def go_on_dividing(X, y, depth=0, div_set=None,
-                   threshold_gini=0.05, min_node_size=5, max_depth=3):
     
-    global i
-    if div_set is None:
-        div_set = []
+    def _find_optimal_division(self, x, y):
+        list_gini = []
+        x_unique = np.unique(x)
+
+        for threshold in x_unique:
+
+            mask_divide = x > threshold
+            y_right = y[mask_divide]
+            y_left = y[~mask_divide]
+
+            gini_divide = (gini(y_right) * len(y_right) + gini(y_left) * len(y_left)) / len(y)
+
+            list_gini.append(gini_divide)
+
+        array_gini = np.array(list_gini)
+        i_div_opt = np.argmin(array_gini)
+
+        return x_unique[i_div_opt], array_gini[i_div_opt]
+
+
+    def _divide(self, X, y):
+
+        results = np.apply_along_axis(self._find_optimal_division, 0, X, y)
+
+        arg_div = np.argmin(results[1])
+        x_div = results[0, arg_div]
+
+        return arg_div, x_div
+
+
+    def _go_on_dividing(self, X, y, depth=0):
+
+        depth += 1
+
+        arg_div, x_div = self._divide(X, y)
+        node_current = node_internal(self.i_node, depth, arg_div, x_div)
+        self.dict_nodes[self.i_node] = node_current
+
+        print("=== node {} (depth {}): arg_div -> {}, x_div -> {} ===".format(self.i_node, depth, arg_div, x_div))
+
+        mask = X[:, arg_div] > x_div
+        X_right, X_left = X[mask], X[~mask]
+        y_right, y_left = y[mask], y[~mask]
+
+        gini_left = gini(y_left)
+        gini_right = gini(y_right)
+
+        list_divided = [(X_left, y_left, gini_left), (X_right, y_right, gini_right)]
+
+        for lr, divided in enumerate(list_divided):
+            self.i_node +=1
+
+            X_i, y_i, gini_i = divided
+            if gini_i > self.threshold_gini and len(y_i)>self.min_node_size and depth+1 <= self.max_depth:
+                
+                node_current.set_node_child(lr, self.i_node)
+                self._go_on_dividing(X_i, y_i, depth=depth)
+            else:
+                node_current.set_node_child(lr, self.i_node)
+                feature_majority = np.bincount(np.array(y_i)).argmax()
+                
+                node_terminal = node_leaf(self.i_node, depth, feature_majority)
+                self.dict_nodes[self.i_node] = node_terminal
+                
+
+    def fit(self, X, y):
         
-    depth += 1
-    
-    arg_div, x_div = divide_tree(X, y)
-    
-    print("=== node {} (depth {}): arg_div -> {}, x_div -> {} ===".format(i, depth, arg_div, x_div))
-    
-    mask = X[:, arg_div] > x_div
-    X_upper, X_lower = X[mask], X[~mask]
-    y_upper, y_lower = y[mask], y[~mask]
-    
-    gini_lower = gini(y_lower)
-    gini_upper = gini(y_upper)
-    
-    list_divided = [(X_lower, y_lower, gini_lower), (X_upper, y_upper, gini_upper)]
-    
-    for ul, divided in enumerate(list_divided):
-        i +=1
-        div_set_tmp = div_set.copy()
-        div_set_tmp.append((depth, i, arg_div, x_div, ul))
+        self.i_node = 0
+        self.dict_nodes = {}
         
-        X_i, y_i, gini_i = divided
-        if gini_i > threshold_gini and len(y_i)>min_node_size and depth+1 <= max_depth:
-            go_on_dividing(X_i, y_i, depth=depth, div_set=div_set_tmp)
-        else:
-            # なんらかの停止処理
-            print(div_set_tmp, np.bincount(np.array(y_i)).argmax())
+        self._go_on_dividing(X, y)
+
+
+    def _pred_each_vector(self, x):
+        
+        node_current = self.dict_nodes[0]
+        while True:
+            lr = int(x[node_current.i_feature] > node_current.threshold)
+            node_next = self.dict_nodes[node_current.node_child[lr]]
+            
+            if node_next.__class__.__name__ == 'node_leaf':
+                return node_next.k_decided
+            else:
+                node_current = node_next
+    
+    
+    def predict(self, X):
+        
+        return np.apply_along_axis(self._pred_each_vector, 1, X)
