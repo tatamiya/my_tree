@@ -9,6 +9,36 @@ def gini(y):
     return 1 - (prob * prob).sum()
 
 
+class node_basis():
+    
+    def __init__(self, i_node, depth):
+        
+        self.i_node = i_node
+        self.depth = depth
+
+class node_internal(node_basis):
+    
+    def __init__(self, i_node, depth, i_feature, threshold):
+        
+        super().__init__(i_node, depth)
+        self.i_feature = i_feature
+        self.threshold = threshold
+        
+        self.node_child = {0:None, 1:None}
+        
+
+    def set_node_child(self, lr, i):
+        self.node_child[lr] = i
+
+
+class node_leaf(node_basis):
+    
+    def __init__(self, i_node, depth, k):
+        
+        super().__init__(i_node, depth)
+        self.k_decided = k
+
+
 class MyTree():
     
     
