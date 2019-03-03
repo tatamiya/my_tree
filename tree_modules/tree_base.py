@@ -42,11 +42,18 @@ class node_leaf(node_basis):
 class MyTree():
     
     
-    def __init__(self, threshold_gini=0.05, min_node_size=5, max_depth=3):
+    def __init__(self, threshold_gini=0.05, min_node_size=5, max_depth=3,
+                 splitter='best', max_features=None,
+                 verbose=False):
         
         self.threshold_gini, self.min_node_size, self.max_depth = threshold_gini, min_node_size, max_depth
         self.i_node = None
         self.dict_nodes = None
+        
+        self.splitter = splitter # for RF
+        self.max_features = max_features # for RF
+        
+        self.verbose = verbose
     
     
     def _find_optimal_division(self, x, y):
@@ -82,12 +89,37 @@ class MyTree():
     def _go_on_dividing(self, X, y, depth=0):
 
         depth += 1
+        
+        if self.splitter == 'best':
+            X_chosen = X
+            index_feat_chosen = np.arange(X.shape[1])
+        
+        elif self.splitter == 'random':
+            
+            n_features = X.shape[1]
+            if self.max_features is None:
+                num_feat_chosen = int(np.sqrt(n_features))
+            elif isinstance(self.max_features, int) and self.max_features>0 and self.max_features <= n_features:
+                num_feat_chosen = self.max_features
+            elif isinstance(self.max_features, float) and self.max_features>0 and self.max_features<=1.0:
+                num_feat_chosen = int(n_features * self.max_features)
+            else:
+                raise ValueError
+                
+            index_feat_chosen = np.random.choice(n_features, num_feat_chosen, replace=False)
+            X_chosen = X[:, index_feat_chosen]
+            
+        else:
+            raise ValueError
 
-        arg_div, x_div = self._divide(X, y)
+        arg_div_tmp, x_div = self._divide(X_chosen, y)
+        arg_div = index_feat_chosen[arg_div_tmp] # inevitable in case of RF
+        
         node_current = node_internal(self.i_node, depth, arg_div, x_div)
         self.dict_nodes[self.i_node] = node_current
-
-        print("=== node {} (depth {}): arg_div -> {}, x_div -> {} ===".format(self.i_node, depth, arg_div, x_div))
+        
+        if self.verbose == True:
+            print("=== node {} (depth {}): arg_div -> {}, x_div -> {} ===".format(self.i_node, depth, arg_div, x_div))
 
         mask = X[:, arg_div] > x_div
         X_right, X_left = X[mask], X[~mask]
@@ -107,8 +139,8 @@ class MyTree():
                 node_current.set_node_child(lr, self.i_node)
                 self._go_on_dividing(X_i, y_i, depth=depth)
             else:
-                node_current.set_node_child(lr, self.i_node)
-                feature_majority = np.bincount(np.array(y_i)).argmax()
+                node_current.set_node_child(lr, self.i_node)                
+                feature_majority = np.bincount(y_i).argmax()
                 
                 node_terminal = node_leaf(self.i_node, depth, feature_majority)
                 self.dict_nodes[self.i_node] = node_terminal
