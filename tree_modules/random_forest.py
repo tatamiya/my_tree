@@ -1,5 +1,7 @@
 import numpy as np
 from .tree_base import MyTree
+from .utils import select_majority
+
 
 class MyForest():
     

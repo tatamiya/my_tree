@@ -1,4 +1,5 @@
 import numpy as np
+from .utils import select_majority
 
 
 def gini(y):
@@ -140,7 +141,8 @@ class MyTree():
                 self._go_on_dividing(X_i, y_i, depth=depth)
             else:
                 node_current.set_node_child(lr, self.i_node)                
-                feature_majority = np.bincount(y_i).argmax()
+                
+                feature_majority = select_majority(y_i)
                 
                 node_terminal = node_leaf(self.i_node, depth, feature_majority)
                 self.dict_nodes[self.i_node] = node_terminal
